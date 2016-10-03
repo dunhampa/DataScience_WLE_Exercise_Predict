@@ -1,0 +1,96 @@
+---
+title: "Predicting Lifting Exercise Correctness from Sensor Data"
+author: "Peter Dunham"
+date: "October 2, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Summary
+
+Using a boosting/tree model ("gbm") in R's caret packet we predict responses with a > 98% accuracy on a 4900 observation test set. 
+
+## Background
+
+The ability to predict how well, or how correct, a particular exercise is completed by an exerciser is a new frontier at the integration of exercise, technology, and predictive analytics.   
+While fitness trackers, embedded sensors, and IoT devices have become more accessible for exercising tracking currently the integration of these systems focuses more on measuring the amount of exercise, rather than the correctness.  The later is a more difficult problem, but solving it has significant commercial impacts.  Validating predictive models to determine exercise   correctness: 
+
+(1) offers new access to "personal trainer" type experiences for a wider range of exercisers 
+(2)prevents potential injuries
+(3) better utilization of exercise time. [1]
+
+I utilized the WLE dataset[1] to develop a predictive model on the correct or type of errors a exerciser was making while lifting dumbbells.  In the dataset, these errors are classified in a variable called "classe". Relevant predictors were recorded from sensor datas in the weight and lifter motion. 
+
+## Data and Cross-Validation
+
+The relevant data set was provided as a csv file "pml-training" and had 19622 observations with 160 variables: 159 possible predictors and 1 response; where the response is "classe" of lifting errors as discussed previously.
+
+Below, I show the basic data cleanup and partitioning completed to prepare for training a predictive model. Variables, predictors were removed from the data for 3 possible reasons:
+(1) may bias response (removed name of participant)
+(2) not relevant (raw time stamp, and windowing information)
+(3) incomplete, blank or NA
+
+For validation, I break the available data into a testing and training dataset.  
+```{r cars}
+  
+  library(ElemStatLearn)
+  library(caret)
+  
+  
+  training<-read.csv("pml-training.csv", stringsAsFactors = FALSE)
+    #final<-read.csv("pml-testing.csv", stringsAsFactors = FALSE)
+  training$classe<-as.factor(training$classe)
+  
+  #Removing biased predictors and predictors that were empty --manually removing
+  colsToRemove<-c(seq(0,5, by=1),seq(12,20, by=1), seq(43,48, by =1), seq(52,60, by=1), seq(74,82, by=1))
+  
+  #Programmatically removing other columns
+  if(TRUE){  
+    na_count <-sapply(training, function(y) sum(is.na(y) ))
+    na_count <- data.frame(na_count)
+    na_count$colnames<-row.names(na_count)
+    colsToTake<-na_count[na_count<1000,]$colnames
+    training<-training[,colsToTake]
+    colsToTake<-replace(colsToTake,length(colsToTake),colnames(training)[length(training)])
+    #testing<-testing[,colsToTake]
+  }
+  
+  training<-training[,-colsToRemove]
+  #final<<-testing[,-colsToRemove]
+  
+  trainIndex<-createDataPartition(y=training$classe, p=0.75, list=FALSE)
+  testing<-training[-trainIndex,]
+  training<-training[trainIndex,]
+  
+  #For Debug
+  #testing<<-testing
+  #training<<-training
+  
+  
+```
+## Building Model
+
+Using the "caret" package in R a boosting with trees model "gbm" is generated to test prediction on the testing dataset
+```{r cache=TRUE}
+
+  library(AppliedPredictiveModeling)
+  library(caret)
+  
+  modelfit<-train(classe~., method="gbm", data=training ,verbose=FALSE)
+  #modelfit
+
+```
+## Validation
+We use a confusion matrix to show response accuracy with a 4904 observation test set.  This validation shows that the model predicts well at  >98%.
+```{r}
+confusionMatrix(testing$classe,predict(modelfit,testing))
+
+```
+
+
+## Works Cited
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+http://groupware.les.inf.puc-rio.br/har#ixzz4LyHt342I
